@@ -25,6 +25,8 @@ fun AirgapApp(
         val context = LocalContext.current
         val report = remember { PrivacyReport.from(context) }
         PrivacyCheckScreen(report, onBack = viewModel::closePrivacyCheck)
+    } else if (!state.firstRunDone) {
+        FirstRunScreen(onContinue = viewModel::finishFirstRun)
     } else if (!state.unlocked) {
         LockScreen(
             vaultExists = state.vaultExists,

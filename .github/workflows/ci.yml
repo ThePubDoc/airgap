@@ -25,10 +25,10 @@ jobs:
       # Also validates the Gradle wrapper checksum.
       - uses: gradle/actions/setup-gradle@v6
 
-      # assembleRelease runs verifyReleaseNoNetworkPermission, so a dependency that
+      # assembleRelease and bundleRelease run verifyReleaseNoNetworkPermission, so a dependency that
       # adds internet access fails the build. No signing key here: the APK is unsigned.
-      - name: Unit tests, lint and release build
-        run: ./gradlew testDebugUnitTest lintRelease assembleRelease
+      - name: Unit tests, lint, release APK and Play bundle
+        run: ./gradlew testDebugUnitTest lintRelease assembleRelease bundleRelease
 
       - name: Upload reports
         if: failure()

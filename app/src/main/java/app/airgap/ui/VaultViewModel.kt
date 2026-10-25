@@ -1,8 +1,10 @@
 package app.airgap.ui
 
 import android.app.Application
+import android.content.Context
 import android.os.SystemClock
 import android.security.keystore.KeyPermanentlyInvalidatedException
+import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import app.airgap.nfc.CardRead
@@ -45,6 +47,8 @@ data class VaultUiState(
     val error: String? = null,
     /** The privacy check screen. Open from the lock screen too, since it shows no card data. */
     val privacyCheckOpen: Boolean = false,
+    /** Whether the "no backup" warning has been acknowledged (or a vault already exists). */
+    val firstRunDone: Boolean = true,
 )
 
 class VaultViewModel(application: Application) : AndroidViewModel(application) {
@@ -53,7 +57,14 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
     // One thread for all vault work, so saves, locks and unlocks run in the order they're issued.
     private val vaultDispatcher = Dispatchers.IO.limitedParallelism(1)
 
-    private val _state = MutableStateFlow(VaultUiState(vaultExists = repository.isCreated))
+    private val prefs = application.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+
+    private val _state = MutableStateFlow(
+        VaultUiState(
+            vaultExists = repository.isCreated,
+            firstRunDone = repository.isCreated || prefs.getBoolean(KEY_FIRST_RUN_DONE, false),
+        ),
+    )
     val state: StateFlow<VaultUiState> = _state.asStateFlow()
 
     /**
@@ -228,6 +239,11 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun finishFirstRun() {
+        prefs.edit { putBoolean(KEY_FIRST_RUN_DONE, true) }
+        _state.update { it.copy(firstRunDone = true) }
+    }
+
     fun openPrivacyCheck() = _state.update { it.copy(privacyCheckOpen = true) }
 
     fun closePrivacyCheck() = _state.update { it.copy(privacyCheckOpen = false) }
@@ -262,6 +278,8 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private companion object {
+        const val PREFS = "airgap_prefs"
+        const val KEY_FIRST_RUN_DONE = "first_run_done"
         /** How long the vault stays open in the background while the card form is open. */
         const val EDIT_GRACE_MS = 60_000L
 

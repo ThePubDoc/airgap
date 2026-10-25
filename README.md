@@ -154,6 +154,7 @@ Requirements:
 ./gradlew lintRelease                    # Android lint; errors fail the build
 ./gradlew connectedDebugAndroidTest      # UI tests on a connected device or emulator
 ./gradlew verifyReleaseNoNetworkPermission
+./gradlew bundleRelease                  # Android App Bundle for Google Play: app/build/outputs/bundle/release/app-release.aab
 ```
 
 `connectedDebugAndroidTest` runs on every connected device. Set `ANDROID_SERIAL` (for example `ANDROID_SERIAL=emulator-5554`) to pick one, and make sure its screen is unlocked.
