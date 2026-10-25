@@ -1,0 +1,95 @@
+import com.android.build.api.artifact.SingleArtifact
+
+plugins {
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
+}
+
+android {
+    namespace = "app.airgap"
+    compileSdk = 37
+
+    defaultConfig {
+        applicationId = "app.airgap"
+        // API 30 is the first level where a Keystore key can be unlocked by
+        // either biometrics or the device PIN through one BiometricPrompt.
+        minSdk = 30
+        targetSdk = 37
+        versionCode = 1
+        versionName = "0.1.0"
+    }
+
+    buildTypes {
+        release {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    buildFeatures {
+        compose = true
+    }
+}
+
+dependencies {
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.fragment.ktx)
+    implementation(libs.androidx.lifecycle.runtime.compose)
+    implementation(libs.androidx.lifecycle.viewmodel.ktx)
+    implementation(libs.androidx.biometric)
+    implementation(platform(libs.compose.bom))
+    implementation(libs.compose.ui)
+    implementation(libs.compose.material3)
+    implementation(libs.compose.ui.tooling.preview)
+    implementation(libs.kotlinx.serialization.json)
+
+    debugImplementation(libs.compose.ui.tooling)
+
+    testImplementation(libs.junit)
+}
+
+/**
+ * Fails the build if any network permission reaches the merged manifest,
+ * for example because a new dependency declares one. The app must never
+ * be able to reach the network.
+ */
+abstract class VerifyNoNetworkPermission : DefaultTask() {
+    @get:InputFile
+    abstract val mergedManifest: RegularFileProperty
+
+    @TaskAction
+    fun verify() {
+        val manifest = mergedManifest.get().asFile.readText()
+        val forbidden = listOf(
+            "android.permission.INTERNET",
+            "android.permission.ACCESS_NETWORK_STATE",
+            "android.permission.ACCESS_WIFI_STATE",
+            "android.permission.CHANGE_NETWORK_STATE",
+        )
+        val found = forbidden.filter { permission ->
+            Regex("""<uses-permission[^>]*android:name="${Regex.escape(permission)}"""").containsMatchIn(manifest)
+        }
+        if (found.isNotEmpty()) {
+            throw GradleException("Network permissions found in merged manifest: $found")
+        }
+    }
+}
+
+androidComponents {
+    onVariants { variant ->
+        val variantName = variant.name.replaceFirstChar { it.uppercase() }
+        val verify = tasks.register<VerifyNoNetworkPermission>("verify${variantName}NoNetworkPermission") {
+            mergedManifest.set(variant.artifacts.get(SingleArtifact.MERGED_MANIFEST))
+        }
+        tasks.matching { it.name == "assemble$variantName" || it.name == "bundle$variantName" }
+            .configureEach { dependsOn(verify) }
+    }
+}
