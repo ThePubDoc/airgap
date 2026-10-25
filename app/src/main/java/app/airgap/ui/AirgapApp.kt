@@ -15,6 +15,7 @@ fun AirgapApp(
     if (!state.unlocked) {
         LockScreen(
             vaultExists = state.vaultExists,
+            hasUnsavedCard = state.screen is Screen.EditCard,
             keyInvalidated = state.keyInvalidated,
             onUnlock = onUnlock,
             onErase = viewModel::eraseVault,
@@ -30,6 +31,8 @@ fun AirgapApp(
             )
             is Screen.EditCard -> CardEditScreen(
                 existing = state.cards.find { it.id == screen.cardId },
+                initialDraft = viewModel.draft ?: CardDraft(),
+                onDraftChange = viewModel::updateDraft,
                 onSave = viewModel::saveCard,
                 onDelete = viewModel::deleteCard,
                 onCancel = viewModel::closeEditor,

@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.Bundle
+import android.os.PowerManager
 import android.view.WindowManager
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -55,6 +56,7 @@ class MainActivity : FragmentActivity() {
 
     override fun onStart() {
         super.onStart()
+        viewModel.onAppShown()
         ContextCompat.registerReceiver(
             this,
             userPresentReceiver,
@@ -75,8 +77,9 @@ class MainActivity : FragmentActivity() {
         super.onStop()
         unregisterReceiver(userPresentReceiver)
         // Lock whenever the app leaves the screen: home button, app switch, or screen off.
+        // The card form gets a short grace period; see VaultViewModel.onAppHidden.
         if (!isChangingConfigurations && !viewModel.authInProgress) {
-            viewModel.lock()
+            viewModel.onAppHidden(screenOn = getSystemService(PowerManager::class.java).isInteractive)
             viewModel.autoUnlockArmed = true
         }
     }

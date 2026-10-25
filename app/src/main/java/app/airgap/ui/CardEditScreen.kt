@@ -23,6 +23,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -41,25 +42,64 @@ import java.util.UUID
 // "Password" keyboard types tell the keyboard not to learn or suggest what's typed.
 private val SecretDigits = KeyboardOptions(keyboardType = KeyboardType.NumberPassword, autoCorrectEnabled = false)
 
+/**
+ * What's typed into the card form so far, exactly as entered. Held in memory only
+ * so the form survives the vault locking while the person copies details from
+ * another app. Never written to disk.
+ */
+data class CardDraft(
+    val cardId: String? = null,
+    val nickname: String = "",
+    val holderName: String = "",
+    val number: String = "",
+    val month: String = "",
+    val year: String = "",
+    val cvv: String = "",
+    val kind: CardKind = CardKind.CREDIT,
+) {
+    /** Kept free of card data so a stray log line or crash report can't leak it. */
+    override fun toString() = "CardDraft(cardId=$cardId)"
+
+    companion object {
+        fun from(card: Card) = CardDraft(
+            cardId = card.id,
+            nickname = card.nickname,
+            holderName = card.holderName,
+            number = card.number,
+            month = card.expiryMonth.toString().padStart(2, '0'),
+            year = (card.expiryYear % 100).toString().padStart(2, '0'),
+            cvv = card.cvv,
+            kind = card.kind,
+        )
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CardEditScreen(
     existing: Card?,
+    initialDraft: CardDraft,
+    onDraftChange: (CardDraft) -> Unit,
     onSave: (Card) -> Unit,
     onDelete: (cardId: String) -> Unit,
     onCancel: () -> Unit,
 ) {
     BackHandler(onBack = onCancel)
 
-    var nickname by remember { mutableStateOf(existing?.nickname.orEmpty()) }
-    var holder by remember { mutableStateOf(existing?.holderName.orEmpty()) }
-    var number by remember { mutableStateOf(existing?.number.orEmpty()) }
-    var month by remember { mutableStateOf(existing?.expiryMonth?.toString()?.padStart(2, '0').orEmpty()) }
-    var year by remember { mutableStateOf(existing?.expiryYear?.rem(100)?.toString()?.padStart(2, '0').orEmpty()) }
-    var cvv by remember { mutableStateOf(existing?.cvv.orEmpty()) }
-    var kind by remember { mutableStateOf(existing?.kind ?: CardKind.CREDIT) }
+    var nickname by remember { mutableStateOf(initialDraft.nickname) }
+    var holder by remember { mutableStateOf(initialDraft.holderName) }
+    var number by remember { mutableStateOf(initialDraft.number) }
+    var month by remember { mutableStateOf(initialDraft.month) }
+    var year by remember { mutableStateOf(initialDraft.year) }
+    var cvv by remember { mutableStateOf(initialDraft.cvv) }
+    var kind by remember { mutableStateOf(initialDraft.kind) }
     var showErrors by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
+
+    // The fields stay local so typing is never delayed; the view model keeps a copy
+    // to restore the form if the vault locks before it's saved.
+    val draft = CardDraft(existing?.id, nickname, holder, number, month, year, cvv, kind)
+    SideEffect { onDraftChange(draft) }
 
     val network = CardNetwork.detect(number)
     val monthValue = month.toIntOrNull()?.takeIf { it in 1..12 }

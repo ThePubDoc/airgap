@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun LockScreen(
     vaultExists: Boolean,
+    hasUnsavedCard: Boolean,
     keyInvalidated: Boolean,
     onUnlock: () -> Unit,
     onErase: () -> Unit,
@@ -48,6 +49,7 @@ fun LockScreen(
                     keyInvalidated ->
                         "Android deleted the key that protects your vault. This happens when the " +
                             "screen lock is removed. The saved cards can't be decrypted any more."
+                    hasUnsavedCard -> "Unlock to carry on with your card. What you typed is still here."
                     vaultExists -> "Your cards are encrypted on this phone only."
                     else -> "Cards you add are encrypted with a key in this phone's secure hardware. " +
                         "Nothing is ever sent anywhere: this app has no internet access."
