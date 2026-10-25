@@ -14,7 +14,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -31,12 +30,6 @@ fun LockScreen(
     onUnlock: () -> Unit,
     onErase: () -> Unit,
 ) {
-    // Ask for the fingerprint straight away when there's a vault to open. On first
-    // run, let the person read the screen and tap "Create vault" themselves.
-    LaunchedEffect(Unit) {
-        if (vaultExists && !keyInvalidated) onUnlock()
-    }
-
     var confirmErase by remember { mutableStateOf(false) }
 
     Scaffold { padding ->

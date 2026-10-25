@@ -6,7 +6,7 @@ An Android card vault that keeps your credit and debit cards on your phone and n
 - **Hardware-backed encryption.** Cards are encrypted with AES-256-GCM. The key is protected by a master key in Android Keystore (StrongBox when the phone has it). That master key can't be used without your fingerprint, face or device PIN.
 - **No backups.** The vault lives in `noBackupFilesDir`, and backup and device-to-device transfer are turned off.
 - **Locks itself.** The vault locks whenever the app leaves the screen. Screenshots, screen recording and the recent-apps preview are blocked.
-- **Copy for checkout.** Copied details are flagged sensitive, and the clipboard is cleared after 30 seconds.
+- **Copy for checkout.** Copied details are flagged sensitive, and the clipboard is cleared 30 to 50 seconds later, even if Android has frozen or closed the app in the meantime.
 
 ## What it doesn't do
 
@@ -41,6 +41,7 @@ Each file is laid out as `[IV length: 1 byte][IV][ciphertext + GCM tag]`.
 - **Removing the screen lock destroys the vault.** Android deletes keys that need user authentication when the secure lock screen is turned off. The app then offers to erase the vault and start over.
 - **Losing the phone means losing the cards.** Nothing is backed up anywhere, by design. Your bank can always reissue a card.
 - **Card data in memory.** The data key is zeroed on lock. Decrypted card fields are Kotlin `String`s, which the JVM can't reliably wipe. They're dropped on lock and left for the garbage collector.
+- **Keyboard clipboard history is out of reach.** Samsung Keyboard, Gboard and similar keyboards can keep their own copy of what you copy. Airgap flags copies as sensitive, which many keyboards respect, but it can't clear a keyboard's history. Turn that feature off if it matters to you.
 - **The CVV is optional.** Leave it empty if you'd rather not store it.
 
 ## Project layout

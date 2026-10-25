@@ -44,6 +44,13 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
      */
     var authInProgress = false
 
+    /**
+     * Whether the next time the app comes on screen should open the unlock prompt
+     * by itself. Set each time the vault locks and cleared once the prompt opens,
+     * so cancelling the prompt doesn't immediately bring it back.
+     */
+    var autoUnlockArmed = true
+
     suspend fun prepareUnlock(): Cipher? = withContext(vaultDispatcher) {
         try {
             repository.unlockCipher()
