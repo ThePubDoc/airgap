@@ -81,4 +81,22 @@ Requirements:
 
 Stack: Kotlin 2.4, AGP 9.4 (built-in Kotlin), Jetpack Compose with Material 3, `androidx.biometric`, `kotlinx.serialization`.
 
-Release signing isn't configured. Add a `signingConfigs` block that reads from an untracked `keystore.properties` before building a release APK.
+### Release signing
+
+Release builds are signed with a key kept outside the repo, in `~/.airgap-signing/`:
+
+| File                  | Contents                                         |
+|-----------------------|--------------------------------------------------|
+| `airgap-release.jks`  | The signing key (RSA 4096, PKCS12)               |
+| `keystore.properties` | Its path, alias and password                     |
+
+`keystore.properties.example` shows the format. To use another location, point the `airgap.signingProperties` Gradle property or the `AIRGAP_SIGNING_PROPERTIES` environment variable at your properties file. Without it, `assembleRelease` produces an unsigned APK.
+
+**Back up both files together** (a password manager works). Android only installs an update signed with the same key. Lose the key and the only way to update is to uninstall, which deletes the vault.
+
+```sh
+./gradlew assembleRelease    # app/build/outputs/apk/release/app-release.apk
+adb install app/build/outputs/apk/release/app-release.apk
+```
+
+Use the release build for real cards. The debug build can be inspected with `adb run-as` and a debugger, and switching between the two needs an uninstall because they're signed with different keys.

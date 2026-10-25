@@ -1,10 +1,25 @@
 import com.android.build.api.artifact.SingleArtifact
+import java.util.Properties
 
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
 }
+
+/**
+ * Release signing settings, kept outside the repo. Defaults to
+ * ~/.airgap-signing/keystore.properties; override with the `airgap.signingProperties`
+ * Gradle property or the AIRGAP_SIGNING_PROPERTIES environment variable.
+ * When the file is missing, release builds come out unsigned.
+ */
+val releaseSigning: Properties? = providers.gradleProperty("airgap.signingProperties")
+    .orElse(providers.environmentVariable("AIRGAP_SIGNING_PROPERTIES"))
+    .orElse(System.getProperty("user.home") + "/.airgap-signing/keystore.properties")
+    .map { file(it) }
+    .get()
+    .takeIf { it.isFile }
+    ?.let { propertiesFile -> Properties().apply { propertiesFile.inputStream().use { load(it) } } }
 
 android {
     namespace = "app.airgap"
@@ -20,8 +35,20 @@ android {
         versionName = "0.1.0"
     }
 
+    signingConfigs {
+        if (releaseSigning != null) {
+            create("release") {
+                storeFile = file(releaseSigning.getProperty("storeFile"))
+                storePassword = releaseSigning.getProperty("storePassword")
+                keyAlias = releaseSigning.getProperty("keyAlias")
+                keyPassword = releaseSigning.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
+            signingConfig = signingConfigs.findByName("release")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
