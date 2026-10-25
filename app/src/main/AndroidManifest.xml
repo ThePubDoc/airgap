@@ -40,5 +40,29 @@
         <receiver
             android:name=".security.ClipboardClearReceiver"
             android:exported="false" />
+
+        <!-- Card autofill for checkout forms in other apps and browsers. Only the
+             system can bind to it (BIND_AUTOFILL_SERVICE). -->
+        <service
+            android:name=".autofill.CardAutofillService"
+            android:exported="true"
+            android:label="@string/autofill_service_label"
+            android:permission="android.permission.BIND_AUTOFILL_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.autofill.AutofillService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.autofill"
+                android:resource="@xml/autofill_service" />
+        </service>
+
+        <!-- Opened only through the service's PendingIntent. Its own task, so it
+             doesn't pull the main vault screen over the app being filled. -->
+        <activity
+            android:name=".autofill.AutofillActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:theme="@style/Theme.Airgap" />
     </application>
 </manifest>

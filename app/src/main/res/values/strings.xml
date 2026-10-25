@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">Airgap</string>
+    <string name="autofill_service_label">Airgap card autofill</string>
+    <string name="autofill_suggestion">Fill card with Airgap</string>
 </resources>

@@ -7,11 +7,28 @@ An Android card vault that keeps your credit and debit cards on your phone and n
 - **No backups.** The vault lives in `noBackupFilesDir`, and backup and device-to-device transfer are turned off.
 - **Locks itself.** The vault locks whenever the app leaves the screen, and after 2 minutes without a touch while it's open. While you're adding or editing a card, it stays open for 60 seconds in the background so you can copy details from another app, and anything typed survives a lock. Screenshots, screen recording and the recent-apps preview are blocked.
 - **Card colours.** Pick a colour per card so they're easy to tell apart. Numbers are shown in printed groups as you type them.
+- **Fill online checkouts.** Airgap can be Android's autofill service for card fields: tap **Fill card with Airgap** on a checkout form, confirm with your fingerprint, and pick a card. See [Online checkout autofill](#online-checkout-autofill).
 - **Copy for checkout.** Copied details are flagged sensitive, and the clipboard is cleared 30 to 50 seconds later, even if Android has frozen or closed the app in the meantime.
 
 ## What it doesn't do
 
 **Contactless (tap-to-pay) payments.** A terminal needs a one-time cryptogram for every tap. Only the card's chip or a bank-issued token can produce it. Tokens come from Visa and Mastercard tokenization services (VTS, MDES), which are open only to certified wallet providers. A saved card number, expiry and CVV can't produce that cryptogram. For tap-to-pay, use Google Wallet, Samsung Wallet or your bank's app; Airgap's **Pay** button opens whichever of the two wallets is installed.
+
+## Online checkout autofill
+
+Airgap can fill the card number, expiry (text or drop-downs), CVV and name into checkout forms in Chrome and other apps.
+
+1. **Turn it on.** Tap **Turn on** on the card at the top of Airgap's list, or go to Android **Settings → Passwords, passkeys & autofill → Preferred service** and pick **Airgap card autofill**. Android allows one autofill service at a time, so this replaces Samsung Pass or Google autofill, passwords included.
+2. **In Chrome**, also choose **Settings → Autofill services → Autofill using another service**. Chrome restarts. Without this, Chrome only uses Google's own autofill.
+3. **On a checkout form**, tap the card number field, then **Fill card with Airgap**. Confirm it's you and pick a card. The picker shows which website or app is asking; check it before you pick.
+
+How it stays safe:
+
+- The suggestion shows no card data. Nothing is read from the vault until you confirm with your fingerprint or PIN.
+- The vault is unlocked only long enough to read the cards for the picker, then locked again.
+- Only forms with a card number or security code field get the suggestion. Login, address and other forms are left alone.
+- Airgap never saves what you type into other apps.
+- Chrome only offers autofill on secure (HTTPS) pages.
 
 ## Security model
 
@@ -50,6 +67,12 @@ Each file is laid out as `[IV length: 1 byte][IV][ciphertext + GCM tag]`.
 ```
 app/src/main/java/app/airgap/
 ├── MainActivity.kt           BiometricPrompt, FLAG_SECURE, lock on stop
+├── autofill/
+│   ├── CardAutofillService.kt  Offers a locked "Fill card with Airgap" suggestion
+│   ├── AutofillActivity.kt     Unlocks, shows the card picker, returns the filled values
+│   ├── CardForm.kt             Finds card fields in a form and builds the fill
+│   ├── CardFieldClassifier.kt  Autofill hints, autocomplete attributes, then field names
+│   └── CardFillValues.kt       Expiry formats and drop-down matching
 ├── security/
 │   ├── KeystoreKey.kt        Master key generation and Cipher setup
 │   └── SecureClipboard.kt    Sensitive clip with auto-clear

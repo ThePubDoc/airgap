@@ -1,5 +1,10 @@
 package app.airgap.ui
 
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
+import android.view.autofill.AutofillManager
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -38,6 +43,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import app.airgap.vault.Card
 import app.airgap.vault.CardValidation
 
@@ -64,24 +70,25 @@ fun CardListScreen(
             ExtendedFloatingActionButton(onClick = onAdd) { Text("Add card") }
         },
     ) { padding ->
-        if (cards.isEmpty()) {
-            Box(Modifier.fillMaxSize().padding(padding).padding(24.dp), contentAlignment = Alignment.Center) {
-                Text(
-                    "No cards yet.\nTap Add card to store your first one.",
-                    style = MaterialTheme.typography.bodyLarge,
-                    textAlign = TextAlign.Center,
-                )
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                // Bottom padding keeps the last card clear of the floating button.
-                contentPadding = PaddingValues(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 96.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                items(cards, key = { it.id }) { card ->
-                    CardItem(card = card, onEdit = { onEdit(card) }, onCopy = onCopy)
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(padding),
+            // Bottom padding keeps the last card clear of the floating button.
+            contentPadding = PaddingValues(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 96.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            item(key = "autofill") { AutofillBanner() }
+            if (cards.isEmpty()) {
+                item(key = "empty") {
+                    Text(
+                        "No cards yet.\nTap Add card to store your first one.",
+                        style = MaterialTheme.typography.bodyLarge,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth().padding(top = 160.dp),
+                    )
                 }
+            }
+            items(cards, key = { it.id }) { card ->
+                CardItem(card = card, onEdit = { onEdit(card) }, onCopy = onCopy)
             }
         }
     }
@@ -173,3 +180,48 @@ private fun PayButton() {
         }
     }
 }
+
+/**
+ * Invites the person to turn on card autofill for checkout forms. Hidden once
+ * Airgap is the autofill service, or after "Not now".
+ */
+@Composable
+private fun AutofillBanner() {
+    val context = LocalContext.current
+    val autofill = remember { context.getSystemService(AutofillManager::class.java) }
+    val prefs = remember { context.getSharedPreferences(PREFS, Context.MODE_PRIVATE) }
+    var enabled by remember { mutableStateOf(autofill?.hasEnabledAutofillServices() == true) }
+    var dismissed by remember { mutableStateOf(prefs.getBoolean(KEY_AUTOFILL_DISMISSED, false)) }
+    // Re-check on return from the system's "use Airgap for autofill?" screen.
+    LifecycleResumeEffect(Unit) {
+        enabled = autofill?.hasEnabledAutofillServices() == true
+        onPauseOrDispose { }
+    }
+    if (enabled || dismissed || autofill?.isAutofillSupported != true) return
+
+    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp)) {
+            Text("Fill cards in online checkout", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "Airgap can fill card details into checkout forms in Chrome and other apps, after your fingerprint. " +
+                    "Android allows one autofill app at a time, so this replaces Samsung Pass or Google autofill for passwords.",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                TextButton(onClick = {
+                    prefs.edit().putBoolean(KEY_AUTOFILL_DISMISSED, true).apply()
+                    dismissed = true
+                }) { Text("Not now") }
+                TextButton(onClick = {
+                    context.startActivity(
+                        Intent(Settings.ACTION_REQUEST_SET_AUTOFILL_SERVICE, Uri.parse("package:${context.packageName}")),
+                    )
+                }) { Text("Turn on") }
+            }
+        }
+    }
+}
+
+private const val PREFS = "airgap_prefs"
+private const val KEY_AUTOFILL_DISMISSED = "autofill_banner_dismissed"
