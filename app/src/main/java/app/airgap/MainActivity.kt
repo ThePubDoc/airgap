@@ -84,6 +84,11 @@ class MainActivity : FragmentActivity() {
         }
     }
 
+    override fun onUserInteraction() {
+        super.onUserInteraction()
+        viewModel.onUserActivity()
+    }
+
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
         // Home or app switch. This also closes an open unlock prompt, which Android

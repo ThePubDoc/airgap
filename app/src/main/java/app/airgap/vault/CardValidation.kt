@@ -55,20 +55,34 @@ object CardValidation {
     fun isCvvValid(cvv: String, network: CardNetwork): Boolean =
         cvv.isEmpty() || (digitsOnly(cvv) == cvv && cvv.length == network.cvvLength)
 
-    /** Groups digits the way they're printed: 4-6-5 for Amex, fours for everything else. */
+    /** Where a space goes, as digit counts: 4-6-5 for Amex, fours for everything else. */
+    fun groupBoundaries(number: String): List<Int> =
+        if (CardNetwork.detect(number) == CardNetwork.AMEX) listOf(4, 10, 15) else listOf(4, 8, 12, 16)
+
+    /** Groups digits the way they're printed, e.g. `4111 1111 1111 1111`. */
     fun formatNumber(number: String): String {
         val digits = digitsOnly(number)
-        val groupSizes = if (CardNetwork.detect(digits) == CardNetwork.AMEX) listOf(4, 6, 5) else List(5) { 4 }
-        val groups = mutableListOf<String>()
-        var start = 0
-        for (size in groupSizes) {
-            if (start >= digits.length) break
-            groups += digits.substring(start, minOf(start + size, digits.length))
-            start += size
+        val spaces = spacesIn(digits)
+        return buildString {
+            digits.forEachIndexed { index, digit ->
+                if (index in spaces) append(' ')
+                append(digit)
+            }
         }
-        if (start < digits.length) groups += digits.substring(start)
-        return groups.joinToString(" ")
     }
+
+    /** Cursor position in [formatNumber]'s output for a position in the raw digits. */
+    fun formattedOffset(digits: String, digitOffset: Int): Int =
+        digitOffset + spacesIn(digits).count { it < digitOffset }
+
+    /** Cursor position in the raw digits for a position in [formatNumber]'s output. */
+    fun digitOffset(digits: String, formattedOffset: Int): Int {
+        // The k-th space sits at index boundary + k in the formatted text.
+        val spacesBefore = spacesIn(digits).withIndex().count { (k, boundary) -> boundary + k < formattedOffset }
+        return (formattedOffset - spacesBefore).coerceIn(0, digits.length)
+    }
+
+    private fun spacesIn(digits: String) = groupBoundaries(digits).filter { it < digits.length }
 
     fun mask(number: String): String = "•••• " + number.takeLast(4)
 

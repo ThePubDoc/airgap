@@ -63,6 +63,7 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
 
     private var hiddenAt: Long? = null
     private var pendingLock: Job? = null
+    private var idleLock: Job? = null
 
     suspend fun prepareUnlock(): Cipher? = withContext(vaultDispatcher) {
         try {
@@ -85,12 +86,15 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
                         // Keeps the current screen, so an unsaved card form comes back as it was.
                         it.copy(vaultExists = true, unlocked = true, cards = cards, error = null)
                     }
+                    onUserActivity()
                 }
                 .onFailure { showError("Couldn't open the vault. The file may be damaged.") }
         }
     }
 
     fun lock() {
+        idleLock?.cancel()
+        idleLock = null
         pendingLock?.cancel()
         pendingLock = null
         hiddenAt = null
@@ -107,6 +111,9 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
      * from another app, so the vault stays open for [EDIT_GRACE_MS].
      */
     fun onAppHidden(screenOn: Boolean) {
+        // Time away from the app is handled here, not by the inactivity timer.
+        idleLock?.cancel()
+        idleLock = null
         val editing = _state.value.unlocked && _state.value.screen is Screen.EditCard
         if (!editing || !screenOn) {
             lock()
@@ -124,10 +131,24 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
     fun onAppShown() {
         pendingLock?.cancel()
         pendingLock = null
-        val since = hiddenAt ?: return
+        val since = hiddenAt
         hiddenAt = null
         // The timer above doesn't run while Android has the app frozen, so check the clock too.
-        if (SystemClock.elapsedRealtime() - since > EDIT_GRACE_MS) lock()
+        if (since != null && SystemClock.elapsedRealtime() - since > EDIT_GRACE_MS) lock()
+        onUserActivity()
+    }
+
+    /**
+     * A touch on the app, or a change to the card form (keyboard typing goes to the
+     * keyboard app, so the activity never sees it). Restarts the inactivity timer.
+     */
+    fun onUserActivity() {
+        if (!_state.value.unlocked) return
+        idleLock?.cancel()
+        idleLock = viewModelScope.launch {
+            delay(IDLE_LOCK_MS)
+            lock()
+        }
     }
 
     fun openEditor(cardId: String?) {
@@ -136,7 +157,9 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun updateDraft(newDraft: CardDraft) {
+        if (newDraft == draft) return
         draft = newDraft
+        onUserActivity()
     }
 
     fun closeEditor() {
@@ -186,5 +209,8 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
     private companion object {
         /** How long the vault stays open in the background while the card form is open. */
         const val EDIT_GRACE_MS = 60_000L
+
+        /** How long the vault stays open on screen with no touches or typing. */
+        const val IDLE_LOCK_MS = 2 * 60_000L
     }
 }

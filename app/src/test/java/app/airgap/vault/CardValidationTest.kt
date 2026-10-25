@@ -73,4 +73,56 @@ class CardValidationTest {
         val card = Card("id", "", "A B", "4111111111111111", 1, 2030, "123", CardKind.CREDIT)
         assertFalse(card.toString().contains("4111111111111111"))
     }
+
+    @Test
+    fun `cursor offsets map between digits and grouped text`() {
+        val visa = "4111111111111111"
+        // Formatted: "4111 1111 1111 1111"
+        assertEquals(0, CardValidation.formattedOffset(visa, 0))
+        assertEquals(4, CardValidation.formattedOffset(visa, 4))
+        assertEquals(6, CardValidation.formattedOffset(visa, 5))
+        assertEquals(19, CardValidation.formattedOffset(visa, 16))
+        assertEquals(4, CardValidation.digitOffset(visa, 4))
+        assertEquals(4, CardValidation.digitOffset(visa, 5))
+        assertEquals(5, CardValidation.digitOffset(visa, 6))
+        assertEquals(16, CardValidation.digitOffset(visa, 19))
+
+        val partialAmex = "3782822"
+        assertEquals("3782 822", CardValidation.formatNumber(partialAmex))
+        assertEquals(8, CardValidation.formattedOffset(partialAmex, 7))
+    }
+
+    @Test
+    fun `cursor offsets round trip for every position and length`() {
+        listOf("4111111111111111", "378282246310005", "6521000000000000123").forEach { full ->
+            for (length in 0..full.length) {
+                val digits = full.take(length)
+                val formatted = CardValidation.formatNumber(digits)
+                for (offset in 0..digits.length) {
+                    val shown = CardValidation.formattedOffset(digits, offset)
+                    assertTrue(shown in 0..formatted.length)
+                    assertEquals(offset, CardValidation.digitOffset(digits, shown))
+                }
+                for (shown in 0..formatted.length) {
+                    assertTrue(CardValidation.digitOffset(digits, shown) in 0..digits.length)
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `vault written before card colours existed still loads`() {
+        val oldVault = """{"cards":[{"id":"a","nickname":"","holderName":"A","number":"4111111111111111",""" +
+            """"expiryMonth":1,"expiryYear":2030,"kind":"CREDIT"}]}"""
+        val card = VaultJson.decodeFromString(VaultContents.serializer(), oldVault).cards.single()
+        assertEquals(CardColor.GRAPHITE, card.color)
+    }
+
+    @Test
+    fun `unknown colour from a newer version falls back instead of failing`() {
+        val newerVault = """{"cards":[{"id":"a","nickname":"","holderName":"A","number":"4111111111111111",""" +
+            """"expiryMonth":1,"expiryYear":2030,"kind":"CREDIT","color":"HOLOGRAPHIC","future":1}]}"""
+        val card = VaultJson.decodeFromString(VaultContents.serializer(), newerVault).cards.single()
+        assertEquals(CardColor.GRAPHITE, card.color)
+    }
 }

@@ -14,6 +14,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
@@ -29,6 +33,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -48,7 +54,10 @@ fun CardListScreen(
         topBar = {
             TopAppBar(
                 title = { Text("Airgap") },
-                actions = { TextButton(onClick = onLock) { Text("Lock") } },
+                actions = {
+                    PayButton()
+                    TextButton(onClick = onLock) { Text("Lock") }
+                },
             )
         },
         floatingActionButton = {
@@ -86,7 +95,11 @@ private fun CardItem(card: Card, onEdit: () -> Unit, onCopy: (String, String) ->
     val expiry = CardValidation.formatExpiry(card.expiryMonth, card.expiryYear)
     val expired = CardValidation.isExpired(card.expiryMonth, card.expiryYear)
 
-    ElevatedCard(onClick = { revealed = !revealed }, modifier = Modifier.fillMaxWidth()) {
+    ElevatedCard(
+        onClick = { revealed = !revealed },
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.elevatedCardColors(containerColor = Color(card.color.argb), contentColor = Color.White),
+    ) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
@@ -108,7 +121,7 @@ private fun CardItem(card: Card, onEdit: () -> Unit, onCopy: (String, String) ->
                 Text(
                     if (expired) "$expiry · Expired" else expiry,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = if (expired) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+                    color = if (expired) ExpiredOnCard else Color.White,
                 )
             }
             if (revealed) {
@@ -117,14 +130,44 @@ private fun CardItem(card: Card, onEdit: () -> Unit, onCopy: (String, String) ->
                     Text("CVV ${card.cvv}", style = MaterialTheme.typography.bodyMedium, fontFamily = FontFamily.Monospace)
                 }
                 Spacer(Modifier.height(8.dp))
+                val onCardButton = ButtonDefaults.textButtonColors(contentColor = Color.White)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    TextButton(onClick = { onCopy("Card number", card.number) }) { Text("Copy number") }
-                    TextButton(onClick = { onCopy("Expiry", expiry) }) { Text("Copy expiry") }
+                    TextButton(onClick = { onCopy("Card number", card.number) }, colors = onCardButton) { Text("Copy number") }
+                    TextButton(onClick = { onCopy("Expiry", expiry) }, colors = onCardButton) { Text("Copy expiry") }
                     if (card.cvv.isNotEmpty()) {
-                        TextButton(onClick = { onCopy("CVV", card.cvv) }) { Text("Copy CVV") }
+                        TextButton(onClick = { onCopy("CVV", card.cvv) }, colors = onCardButton) { Text("Copy CVV") }
                     }
-                    TextButton(onClick = { onCopy("Name on card", card.holderName) }) { Text("Copy name") }
-                    TextButton(onClick = onEdit) { Text("Edit") }
+                    TextButton(onClick = { onCopy("Name on card", card.holderName) }, colors = onCardButton) { Text("Copy name") }
+                    TextButton(onClick = onEdit, colors = onCardButton) { Text("Edit") }
+                }
+            }
+        }
+    }
+}
+
+/** Light red that stays readable on every tile colour. */
+private val ExpiredOnCard = Color(0xFFFFB4AB)
+
+/** Opens a wallet app for tap-to-pay. Hidden when none is installed. */
+@Composable
+private fun PayButton() {
+    val context = LocalContext.current
+    val apps = remember { PaymentApps.installed(context) }
+    var menuOpen by remember { mutableStateOf(false) }
+    when (apps.size) {
+        0 -> Unit
+        1 -> TextButton(onClick = { PaymentApps.open(context, apps.single()) }) { Text("Pay") }
+        else -> Box {
+            TextButton(onClick = { menuOpen = true }) { Text("Pay") }
+            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                apps.forEach { app ->
+                    DropdownMenuItem(
+                        text = { Text(app.name) },
+                        onClick = {
+                            menuOpen = false
+                            PaymentApps.open(context, app)
+                        },
+                    )
                 }
             }
         }

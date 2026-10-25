@@ -24,11 +24,20 @@ import javax.crypto.spec.SecretKeySpec
  *
  * Not thread-safe: call it from one thread at a time.
  */
+/**
+ * How the vault is serialized. Unknown fields or enum values (say, written by a
+ * newer version) fall back to defaults instead of making the whole vault unreadable.
+ */
+internal val VaultJson = Json {
+    ignoreUnknownKeys = true
+    coerceInputValues = true
+}
+
 class VaultRepository(context: Context) {
     private val directory = context.noBackupFilesDir
     private val keyFile = AtomicFile(File(directory, "vault.key"))
     private val dataFile = AtomicFile(File(directory, "vault.bin"))
-    private val json = Json { ignoreUnknownKeys = true }
+    private val json = VaultJson
 
     private var dataKey: ByteArray? = null
 

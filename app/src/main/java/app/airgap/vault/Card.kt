@@ -8,6 +8,17 @@ enum class CardKind(val label: String) {
     DEBIT("Debit"),
 }
 
+/** Tile colours. All dark enough for white text; picked to look like real cards. */
+@Serializable
+enum class CardColor(val label: String, val argb: Long) {
+    GRAPHITE("Graphite", 0xFF2B2F36),
+    NAVY("Navy", 0xFF1F3A68),
+    TEAL("Teal", 0xFF0F5E5C),
+    PLUM("Plum", 0xFF5B2A62),
+    CRIMSON("Crimson", 0xFF8A1C2B),
+    BRONZE("Bronze", 0xFF7A5418),
+}
+
 @Serializable
 data class Card(
     val id: String,
@@ -21,6 +32,7 @@ data class Card(
     /** Empty when the user chose not to store it. */
     val cvv: String = "",
     val kind: CardKind,
+    val color: CardColor = CardColor.GRAPHITE,
 ) {
     val network: CardNetwork get() = CardNetwork.detect(number)
 

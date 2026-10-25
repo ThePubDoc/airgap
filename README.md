@@ -5,12 +5,13 @@ An Android card vault that keeps your credit and debit cards on your phone and n
 - **No internet access.** The app declares no network permission. The build fails if any dependency tries to add one.
 - **Hardware-backed encryption.** Cards are encrypted with AES-256-GCM. The key is protected by a master key in Android Keystore (StrongBox when the phone has it). That master key can't be used without your fingerprint, face or device PIN.
 - **No backups.** The vault lives in `noBackupFilesDir`, and backup and device-to-device transfer are turned off.
-- **Locks itself.** The vault locks whenever the app leaves the screen. Screenshots, screen recording and the recent-apps preview are blocked.
+- **Locks itself.** The vault locks whenever the app leaves the screen, and after 2 minutes without a touch while it's open. While you're adding or editing a card, it stays open for 60 seconds in the background so you can copy details from another app, and anything typed survives a lock. Screenshots, screen recording and the recent-apps preview are blocked.
+- **Card colours.** Pick a colour per card so they're easy to tell apart. Numbers are shown in printed groups as you type them.
 - **Copy for checkout.** Copied details are flagged sensitive, and the clipboard is cleared 30 to 50 seconds later, even if Android has frozen or closed the app in the meantime.
 
 ## What it doesn't do
 
-**Contactless (tap-to-pay) payments.** A terminal needs a one-time cryptogram for every tap. Only the card's chip or a bank-issued token can produce it. Tokens come from Visa and Mastercard tokenization services (VTS, MDES), which are open only to certified wallet providers. A saved card number, expiry and CVV can't produce that cryptogram. For tap-to-pay, use Google Wallet or your bank's app.
+**Contactless (tap-to-pay) payments.** A terminal needs a one-time cryptogram for every tap. Only the card's chip or a bank-issued token can produce it. Tokens come from Visa and Mastercard tokenization services (VTS, MDES), which are open only to certified wallet providers. A saved card number, expiry and CVV can't produce that cryptogram. For tap-to-pay, use Google Wallet, Samsung Wallet or your bank's app; Airgap's **Pay** button opens whichever of the two wallets is installed.
 
 ## Security model
 
@@ -62,6 +63,7 @@ app/src/main/java/app/airgap/
     ├── LockScreen.kt
     ├── CardListScreen.kt
     ├── CardEditScreen.kt
+    ├── PaymentApps.kt        Finds and opens Google Wallet / Samsung Wallet
     └── Theme.kt
 ```
 
