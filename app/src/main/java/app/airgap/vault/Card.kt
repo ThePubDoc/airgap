@@ -33,10 +33,23 @@ data class Card(
     val cvv: String = "",
     val kind: CardKind,
     val color: CardColor = CardColor.GRAPHITE,
+    /** Day of the month the bill is due (credit cards), for reminders. */
+    val dueDay: Int? = null,
+    /** The bank's number to call if the card is lost or stolen. */
+    val helpline: String = "",
+    /** Where to text to block the card, and what to send (blank means [defaultBlockSms]). */
+    val blockSmsNumber: String = "",
+    val blockSmsText: String = "",
 ) {
     val network: CardNetwork get() = CardNetwork.detect(number)
 
     val last4: String get() = number.takeLast(4)
+
+    /** The most common format among Indian banks; the person can change it per card. */
+    val defaultBlockSms: String get() = "BLOCK $last4"
+
+    /** Shown in reminders and dialogs: nickname, or network, plus the last four digits. */
+    val label: String get() = "${nickname.ifBlank { network.displayName }} •• $last4"
 
     /** Kept free of card data so a stray log line or crash report can't leak it. */
     override fun toString() = "Card(id=$id, ${network.displayName} ••••$last4)"

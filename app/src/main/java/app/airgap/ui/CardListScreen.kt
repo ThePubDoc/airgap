@@ -1,10 +1,12 @@
 package app.airgap.ui
 
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
 import android.view.autofill.AutofillManager
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,6 +21,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
@@ -27,6 +30,7 @@ import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -43,6 +47,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.core.content.edit
+import androidx.core.net.toUri
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import app.airgap.vault.Card
 import app.airgap.vault.CardValidation
@@ -99,6 +105,7 @@ fun CardListScreen(
 private fun CardItem(card: Card, onEdit: () -> Unit, onCopy: (String, String) -> Unit) {
     // Details stay hidden until tapped, so the list is safe to open in public.
     var revealed by remember { mutableStateOf(false) }
+    var lostCardOpen by remember { mutableStateOf(false) }
     val expiry = CardValidation.formatExpiry(card.expiryMonth, card.expiryYear)
     val expired = CardValidation.isExpired(card.expiryMonth, card.expiryYear)
 
@@ -132,6 +139,10 @@ private fun CardItem(card: Card, onEdit: () -> Unit, onCopy: (String, String) ->
                 )
             }
             if (revealed) {
+                card.dueDay?.let { day ->
+                    Spacer(Modifier.height(4.dp))
+                    Text("Bill due on the ${ordinal(day)}", style = MaterialTheme.typography.bodyMedium)
+                }
                 if (card.cvv.isNotEmpty()) {
                     Spacer(Modifier.height(4.dp))
                     Text("CVV ${card.cvv}", style = MaterialTheme.typography.bodyMedium, fontFamily = FontFamily.Monospace)
@@ -146,14 +157,81 @@ private fun CardItem(card: Card, onEdit: () -> Unit, onCopy: (String, String) ->
                     }
                     TextButton(onClick = { onCopy("Name on card", card.holderName) }, colors = onCardButton) { Text("Copy name") }
                     TextButton(onClick = onEdit, colors = onCardButton) { Text("Edit") }
+                    TextButton(onClick = { lostCardOpen = true }, colors = onCardButton) { Text("Lost card?") }
                 }
             }
         }
     }
+
+    if (lostCardOpen) LostCardDialog(card, onDismiss = { lostCardOpen = false })
 }
 
 /** Light red that stays readable on every tile colour. */
 private val ExpiredOnCard = Color(0xFFFFB4AB)
+
+/**
+ * Quick ways to block a lost or stolen card. Opens the dialler or the SMS app with
+ * everything filled in; the person still presses call or send, so Airgap needs no
+ * phone or SMS permission.
+ */
+@Composable
+private fun LostCardDialog(card: Card, onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val smsText = card.blockSmsText.ifBlank { card.defaultBlockSms }
+    fun open(intent: Intent) {
+        try {
+            context.startActivity(intent)
+            onDismiss()
+        } catch (e: ActivityNotFoundException) {
+            Toast.makeText(context, "No app on this phone can do that.", Toast.LENGTH_SHORT).show()
+        }
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Lost or stolen card") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Block ${card.label} as soon as you can.")
+                if (card.helpline.isNotBlank()) {
+                    OutlinedButton(
+                        onClick = { open(Intent(Intent.ACTION_DIAL, ("tel:" + Uri.encode(card.helpline)).toUri())) },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text("Call bank: ${card.helpline}") }
+                }
+                if (card.blockSmsNumber.isNotBlank()) {
+                    OutlinedButton(
+                        onClick = {
+                            open(
+                                Intent(Intent.ACTION_SENDTO, ("smsto:" + Uri.encode(card.blockSmsNumber)).toUri())
+                                    .putExtra("sms_body", smsText),
+                            )
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text("Text \"$smsText\" to ${card.blockSmsNumber}") }
+                }
+                if (card.helpline.isBlank() && card.blockSmsNumber.isBlank()) {
+                    Text(
+                        "No bank numbers saved for this card yet. Add the helpline and block-by-SMS number under Edit, " +
+                            "so they're here when you need them.",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Close") } },
+    )
+}
+
+/** 1st, 2nd, 3rd, 4th … 11th, 12th, 13th … 21st. */
+private fun ordinal(day: Int): String {
+    val suffix = if (day % 100 in 11..13) "th" else when (day % 10) {
+        1 -> "st"
+        2 -> "nd"
+        3 -> "rd"
+        else -> "th"
+    }
+    return "$day$suffix"
+}
 
 /** Opens a wallet app for tap-to-pay. Hidden when none is installed. */
 @Composable
@@ -210,12 +288,12 @@ private fun AutofillBanner() {
             )
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 TextButton(onClick = {
-                    prefs.edit().putBoolean(KEY_AUTOFILL_DISMISSED, true).apply()
+                    prefs.edit { putBoolean(KEY_AUTOFILL_DISMISSED, true) }
                     dismissed = true
                 }) { Text("Not now") }
                 TextButton(onClick = {
                     context.startActivity(
-                        Intent(Settings.ACTION_REQUEST_SET_AUTOFILL_SERVICE, Uri.parse("package:${context.packageName}")),
+                        Intent(Settings.ACTION_REQUEST_SET_AUTOFILL_SERVICE, "package:${context.packageName}".toUri()),
                     )
                 }) { Text("Turn on") }
             }

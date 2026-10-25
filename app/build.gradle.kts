@@ -33,6 +33,7 @@ android {
         targetSdk = 37
         versionCode = 1
         versionName = "0.1.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     signingConfigs {
@@ -47,6 +48,10 @@ android {
     }
 
     buildTypes {
+        debug {
+            // Installs next to the release app, so testing never touches the real vault.
+            applicationIdSuffix = ".debug"
+        }
         release {
             signingConfig = signingConfigs.findByName("release")
             isMinifyEnabled = true
@@ -62,6 +67,12 @@ android {
 
     buildFeatures {
         compose = true
+    }
+
+    lint {
+        // Errors fail the build; warnings are reported but don't.
+        abortOnError = true
+        warningsAsErrors = false
     }
 }
 
@@ -81,6 +92,14 @@ dependencies {
     debugImplementation(libs.compose.ui.tooling)
 
     testImplementation(libs.junit)
+
+    androidTestImplementation(platform(libs.compose.bom))
+    androidTestImplementation(libs.compose.ui.test.junit4)
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.androidx.test.runner)
+    // Compose's test library brings Espresso 3.5, which fails on Android 15+ (removed InputManager.getInstance).
+    androidTestImplementation(libs.androidx.test.espresso.core)
+    debugImplementation(libs.compose.ui.test.manifest)
 }
 
 /**

@@ -6,6 +6,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -26,10 +27,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -49,6 +52,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.TransformedText
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import app.airgap.reminders.ReminderRules
 import app.airgap.vault.Card
 import app.airgap.vault.CardColor
 import app.airgap.vault.CardKind
@@ -74,6 +78,10 @@ data class CardDraft(
     val cvv: String = "",
     val kind: CardKind = CardKind.CREDIT,
     val color: CardColor = CardColor.GRAPHITE,
+    val dueDay: String = "",
+    val helpline: String = "",
+    val blockSmsNumber: String = "",
+    val blockSmsText: String = "",
 ) {
     /** Kept free of card data so a stray log line or crash report can't leak it. */
     override fun toString() = "CardDraft(cardId=$cardId)"
@@ -89,6 +97,10 @@ data class CardDraft(
             cvv = card.cvv,
             kind = card.kind,
             color = card.color,
+            dueDay = card.dueDay?.toString().orEmpty(),
+            helpline = card.helpline,
+            blockSmsNumber = card.blockSmsNumber,
+            blockSmsText = card.blockSmsText,
         )
     }
 }
@@ -99,6 +111,10 @@ fun CardEditScreen(
     existing: Card?,
     initialDraft: CardDraft,
     onDraftChange: (CardDraft) -> Unit,
+    nfcStatus: NfcStatus,
+    cardTap: CardTap,
+    onCardTapUsed: () -> Unit,
+    onOpenNfcSettings: () -> Unit,
     onSave: (Card) -> Unit,
     onDelete: (cardId: String) -> Unit,
     onCancel: () -> Unit,
@@ -113,13 +129,37 @@ fun CardEditScreen(
     var cvv by remember { mutableStateOf(initialDraft.cvv) }
     var kind by remember { mutableStateOf(initialDraft.kind) }
     var color by remember { mutableStateOf(initialDraft.color) }
+    var dueDay by remember { mutableStateOf(initialDraft.dueDay) }
+    var helpline by remember { mutableStateOf(initialDraft.helpline) }
+    var blockSmsNumber by remember { mutableStateOf(initialDraft.blockSmsNumber) }
+    var blockSmsText by remember { mutableStateOf(initialDraft.blockSmsText) }
+    var cardWasTapped by remember { mutableStateOf(false) }
     var showErrors by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
 
     // The fields stay local so typing is never delayed; the view model keeps a copy
     // to restore the form if the vault locks before it's saved.
-    val draft = CardDraft(existing?.id, nickname, holder, number, month, year, cvv, kind, color)
+    val draft = CardDraft(
+        existing?.id, nickname, holder, number, month, year, cvv, kind, color,
+        dueDay, helpline, blockSmsNumber, blockSmsText,
+    )
     SideEffect { onDraftChange(draft) }
+
+    // A tapped card fills the number and expiry (and the name, if the card has one
+    // and the field is empty). The CVV isn't readable over NFC.
+    LaunchedEffect(cardTap) {
+        if (cardTap is CardTap.Read) {
+            val read = cardTap.card
+            number = read.number
+            if (read.expiryMonth != null && read.expiryYear != null) {
+                month = read.expiryMonth.toString().padStart(2, '0')
+                year = (read.expiryYear % 100).toString().padStart(2, '0')
+            }
+            if (holder.isBlank() && read.holderName != null) holder = read.holderName
+            cardWasTapped = true
+            onCardTapUsed()
+        }
+    }
 
     val network = CardNetwork.detect(number)
     val monthValue = month.toIntOrNull()?.takeIf { it in 1..12 }
@@ -128,9 +168,11 @@ fun CardEditScreen(
     val holderError = if (holder.isBlank()) "Required" else null
     val expiryError = if (monthValue == null || yearValue == null) "Enter as MM and YY" else null
     val cvvError = if (CardValidation.isCvvValid(cvv, network)) null else "${network.cvvLength} digits, or leave empty"
+    val dueDayValue = dueDay.toIntOrNull()?.takeIf { it in 1..31 }
+    val dueDayError = if (kind == CardKind.CREDIT && dueDay.isNotEmpty() && dueDayValue == null) "A day from 1 to 31" else null
 
     fun save() {
-        if (monthValue == null || yearValue == null || listOfNotNull(numberError, holderError, cvvError).isNotEmpty()) {
+        if (monthValue == null || yearValue == null || listOfNotNull(numberError, holderError, cvvError, dueDayError).isNotEmpty()) {
             showErrors = true
             return
         }
@@ -145,6 +187,10 @@ fun CardEditScreen(
                 cvv = cvv,
                 kind = kind,
                 color = color,
+                dueDay = if (kind == CardKind.CREDIT) dueDayValue else null,
+                helpline = helpline.trim(),
+                blockSmsNumber = blockSmsNumber.trim(),
+                blockSmsText = blockSmsText.trim(),
             ),
         )
     }
@@ -168,6 +214,9 @@ fun CardEditScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            if (existing == null && nfcStatus != NfcStatus.UNAVAILABLE) {
+                TapCardPanel(nfcStatus, cardTap, cardWasTapped, onOpenNfcSettings)
+            }
             OutlinedTextField(
                 value = nickname,
                 onValueChange = { nickname = it.take(40) },
@@ -262,6 +311,54 @@ fun CardEditScreen(
                     ColorSwatch(option, selected = color == option, onSelect = { color = option })
                 }
             }
+            if (kind == CardKind.CREDIT) {
+                SectionTitle("Bill reminder")
+                OutlinedTextField(
+                    value = dueDay,
+                    onValueChange = { dueDay = CardValidation.digitsOnly(it).take(2) },
+                    label = { Text("Bill due day (optional)") },
+                    placeholder = { Text("e.g. 5") },
+                    supportingText = {
+                        Text(dueDayError ?: "Day of the month. Airgap reminds you ${ReminderRules.DAYS_BEFORE_DUE} days before and on the day.")
+                    },
+                    isError = showErrors && dueDayError != null,
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            SectionTitle("If this card is lost (optional)")
+            Text(
+                "Save your bank's numbers now, so blocking the card takes one tap later. " +
+                    "Check the exact number and SMS format on your bank's website.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            OutlinedTextField(
+                value = helpline,
+                onValueChange = { helpline = it.take(20) },
+                label = { Text("Bank helpline") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                value = blockSmsNumber,
+                onValueChange = { blockSmsNumber = it.take(20) },
+                label = { Text("Number to text to block the card") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                value = blockSmsText,
+                onValueChange = { blockSmsText = it.take(60) },
+                label = { Text("Block SMS text") },
+                placeholder = { Text("BLOCK ${number.takeLast(4).ifEmpty { "1234" }}") },
+                supportingText = { Text("Leave empty to send the text shown.") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters, autoCorrectEnabled = false),
+                modifier = Modifier.fillMaxWidth(),
+            )
             if (existing != null) {
                 OutlinedButton(onClick = { confirmDelete = true }, modifier = Modifier.fillMaxWidth()) {
                     Text("Delete card", color = MaterialTheme.colorScheme.error)
@@ -282,6 +379,37 @@ fun CardEditScreen(
                 TextButton(onClick = { confirmDelete = false }) { Text("Cancel") }
             },
         )
+    }
+}
+
+@Composable
+private fun SectionTitle(text: String) {
+    Text(text, style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 8.dp))
+}
+
+/** Invites the person to tap their card to fill the form, and reports how it went. */
+@Composable
+private fun TapCardPanel(status: NfcStatus, tap: CardTap, cardWasTapped: Boolean, onOpenNfcSettings: () -> Unit) {
+    val message = when {
+        status == NfcStatus.OFF -> "Turn on NFC to fill this form by tapping your card on the back of the phone."
+        tap is CardTap.Reading -> "Reading the card… keep it still."
+        tap is CardTap.Failed -> "Couldn't read that card. Hold it flat against the back of the phone and try again."
+        cardWasTapped -> "Card read. Add the CVV yourself: cards don't share it."
+        else -> "Hold your card flat against the back of the phone to fill its number and expiry."
+    }
+    Surface(
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+        shape = MaterialTheme.shapes.medium,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Text("Tap your card", style = MaterialTheme.typography.titleSmall)
+            Text(message, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 4.dp))
+            if (status == NfcStatus.OFF) {
+                TextButton(onClick = onOpenNfcSettings, contentPadding = PaddingValues(0.dp)) { Text("Open NFC settings") }
+            }
+        }
     }
 }
 

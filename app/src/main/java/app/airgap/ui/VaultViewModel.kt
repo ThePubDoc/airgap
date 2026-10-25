@@ -5,6 +5,8 @@ import android.os.SystemClock
 import android.security.keystore.KeyPermanentlyInvalidatedException
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import app.airgap.nfc.CardRead
+import app.airgap.reminders.Reminders
 import app.airgap.vault.Card
 import app.airgap.vault.VaultRepository
 import kotlinx.coroutines.Dispatchers
@@ -21,6 +23,17 @@ import javax.crypto.Cipher
 sealed interface Screen {
     data object Cards : Screen
     data class EditCard(val cardId: String?) : Screen
+}
+
+/** Whether this phone can read a card by tapping it, for the Add card screen. */
+enum class NfcStatus { UNAVAILABLE, OFF, READY }
+
+/** Progress of reading a tapped card on the Add card screen. */
+sealed interface CardTap {
+    data object Waiting : CardTap
+    data object Reading : CardTap
+    data object Failed : CardTap
+    data class Read(val card: CardRead) : CardTap
 }
 
 data class VaultUiState(
@@ -61,6 +74,12 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
     var draft: CardDraft? = null
         private set
 
+    private val _nfcStatus = MutableStateFlow(NfcStatus.UNAVAILABLE)
+    val nfcStatus: StateFlow<NfcStatus> = _nfcStatus.asStateFlow()
+
+    private val _cardTap = MutableStateFlow<CardTap>(CardTap.Waiting)
+    val cardTap: StateFlow<CardTap> = _cardTap.asStateFlow()
+
     private var hiddenAt: Long? = null
     private var pendingLock: Job? = null
     private var idleLock: Job? = null
@@ -82,6 +101,8 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
             val result = withContext(vaultDispatcher) { runCatching { repository.unlock(approvedCipher) } }
             result
                 .onSuccess { cards ->
+                    // Brings the reminder list up to date, e.g. for vaults from before reminders existed.
+                    syncReminders(cards)
                     _state.update {
                         // Keeps the current screen, so an unsaved card form comes back as it was.
                         it.copy(vaultExists = true, unlocked = true, cards = cards, error = null)
@@ -151,7 +172,25 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun setNfcStatus(status: NfcStatus) {
+        _nfcStatus.value = status
+    }
+
+    fun onCardTapReading() {
+        _cardTap.value = CardTap.Reading
+    }
+
+    fun onCardTapResult(read: CardRead?) {
+        _cardTap.value = if (read != null) CardTap.Read(read) else CardTap.Failed
+    }
+
+    /** The form has copied the tapped card's details into its fields. */
+    fun onCardTapUsed() {
+        _cardTap.value = CardTap.Waiting
+    }
+
     fun openEditor(cardId: String?) {
+        _cardTap.value = CardTap.Waiting
         draft = _state.value.cards.find { it.id == cardId }?.let(CardDraft::from) ?: CardDraft()
         _state.update { it.copy(screen = Screen.EditCard(cardId)) }
     }
@@ -178,7 +217,10 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
     /** Deletes every card and the key, returning to first-run state. */
     fun eraseVault() {
         viewModelScope.launch {
-            withContext(vaultDispatcher) { repository.erase() }
+            withContext(vaultDispatcher) {
+                repository.erase()
+                Reminders.clear(getApplication())
+            }
             draft = null
             _state.value = VaultUiState()
         }
@@ -194,11 +236,18 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
         _state.update { it.copy(cards = newCards, screen = Screen.Cards) }
         viewModelScope.launch {
             val result = withContext(vaultDispatcher) { runCatching { repository.save(newCards) } }
+            result.onSuccess { syncReminders(newCards) }
             result.onFailure {
                 _state.update {
                     if (it.unlocked) it.copy(cards = previous, error = "Couldn't save. Your change wasn't stored.") else it
                 }
             }
+        }
+    }
+
+    private fun syncReminders(cards: List<Card>) {
+        viewModelScope.launch(vaultDispatcher) {
+            runCatching { Reminders.sync(getApplication(), cards) }
         }
     }
 

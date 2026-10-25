@@ -1,15 +1,23 @@
 package app.airgap
 
+import android.Manifest
 import android.app.KeyguardManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
+import android.nfc.NfcAdapter
+import android.nfc.Tag
+import android.nfc.tech.IsoDep
+import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
+import android.provider.Settings
 import android.view.WindowManager
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
@@ -17,14 +25,22 @@ import androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL
 import androidx.biometric.BiometricPrompt
 import androidx.compose.runtime.getValue
 import androidx.core.content.ContextCompat
+import androidx.core.content.edit
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import app.airgap.nfc.EmvCardReader
+import app.airgap.reminders.Reminders
 import app.airgap.security.SecureClipboard
 import app.airgap.ui.AirgapApp
 import app.airgap.ui.AirgapTheme
+import app.airgap.ui.NfcStatus
+import app.airgap.ui.Screen
+import app.airgap.ui.VaultUiState
 import app.airgap.ui.VaultViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 // BiometricPrompt needs a FragmentActivity.
@@ -32,6 +48,13 @@ class MainActivity : FragmentActivity() {
 
     private val viewModel: VaultViewModel by viewModels()
     private lateinit var biometricPrompt: BiometricPrompt
+    private val nfcAdapter: NfcAdapter? by lazy { NfcAdapter.getDefaultAdapter(this) }
+    private var readerModeOn = false
+
+    // Once allowed, show anything already due instead of waiting for the next daily check.
+    private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) lifecycleScope.launch(Dispatchers.IO) { runCatching { Reminders.check(applicationContext) } }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -49,7 +72,16 @@ class MainActivity : FragmentActivity() {
                     viewModel = viewModel,
                     onUnlock = ::requestUnlock,
                     onCopy = { label, value -> SecureClipboard.copy(this, label, value) },
+                    onCardSaved = ::askForNotificationsOnce,
+                    onOpenNfcSettings = { startActivity(Intent(Settings.ACTION_NFC_SETTINGS)) },
                 )
+            }
+        }
+
+        // Reader mode only while the Add card screen is open, so a tapped card fills the form.
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                viewModel.state.collect { updateReaderMode(it) }
             }
         }
     }
@@ -70,7 +102,23 @@ class MainActivity : FragmentActivity() {
 
     override fun onResume() {
         super.onResume()
+        val adapter = nfcAdapter
+        viewModel.setNfcStatus(
+            when {
+                adapter == null -> NfcStatus.UNAVAILABLE
+                !adapter.isEnabled -> NfcStatus.OFF
+                else -> NfcStatus.READY
+            },
+        )
         maybeAutoUnlock()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        if (readerModeOn) {
+            nfcAdapter?.disableReaderMode(this)
+            readerModeOn = false
+        }
     }
 
     override fun onStop() {
@@ -115,6 +163,48 @@ class MainActivity : FragmentActivity() {
             viewModel.autoUnlockArmed = false
             requestUnlock()
         }
+    }
+
+    private fun updateReaderMode(state: VaultUiState) {
+        val adapter = nfcAdapter ?: return
+        val screen = state.screen
+        val addingCard = state.unlocked && screen is Screen.EditCard && screen.cardId == null
+        val wanted = addingCard && adapter.isEnabled
+        if (wanted && !readerModeOn) {
+            adapter.enableReaderMode(
+                this,
+                ::readTappedCard,
+                NfcAdapter.FLAG_READER_NFC_A or NfcAdapter.FLAG_READER_NFC_B or NfcAdapter.FLAG_READER_SKIP_NDEF_CHECK,
+                null,
+            )
+            readerModeOn = true
+        } else if (!wanted && readerModeOn) {
+            adapter.disableReaderMode(this)
+            readerModeOn = false
+        }
+    }
+
+    /** Runs on an NFC thread. Reads the card's public number and expiry, nothing else. */
+    private fun readTappedCard(tag: Tag) {
+        runOnUiThread { viewModel.onCardTapReading() }
+        val read = runCatching {
+            IsoDep.get(tag)?.use { card ->
+                card.connect()
+                card.timeout = 5_000
+                EmvCardReader(card::transceive).read()
+            }
+        }.getOrNull()
+        runOnUiThread { viewModel.onCardTapResult(read) }
+    }
+
+    /** Asks once, after the first card is saved, when reminders first become useful. */
+    private fun askForNotificationsOnce() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+        if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) return
+        val prefs = getSharedPreferences("airgap_prefs", MODE_PRIVATE)
+        if (prefs.getBoolean(KEY_ASKED_NOTIFICATIONS, false)) return
+        prefs.edit { putBoolean(KEY_ASKED_NOTIFICATIONS, true) }
+        notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
 
     /**
@@ -176,5 +266,6 @@ class MainActivity : FragmentActivity() {
 
     private companion object {
         const val AUTHENTICATORS = BIOMETRIC_STRONG or DEVICE_CREDENTIAL
+        const val KEY_ASKED_NOTIFICATIONS = "asked_notifications"
     }
 }
