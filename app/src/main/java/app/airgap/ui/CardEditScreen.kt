@@ -229,8 +229,11 @@ fun CardEditScreen(
                 value = number,
                 onValueChange = { number = CardValidation.digitsOnly(it).take(19) },
                 label = { Text("Card number") },
-                supportingText = {
-                    Text(if (showErrors && numberError != null) numberError else network.displayName)
+                // The detected network, once there are digits to detect it from.
+                supportingText = when {
+                    showErrors && numberError != null -> ({ Text(numberError) })
+                    number.isNotEmpty() -> ({ Text(network.displayName) })
+                    else -> null
                 },
                 isError = showErrors && numberError != null,
                 singleLine = true,

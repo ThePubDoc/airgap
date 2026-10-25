@@ -1,0 +1,33 @@
+# Build recipe for F-Droid. Submit it as metadata/app.airgap.yml in a merge request
+# to https://gitlab.com/fdroid/fdroiddata (see "Publishing on F-Droid" in the README).
+Categories:
+  - Security
+  - Money
+License: GPL-3.0-or-later
+AuthorName: ThePubDoc
+SourceCode: https://github.com/ThePubDoc/airgap
+IssueTracker: https://github.com/ThePubDoc/airgap/issues
+Changelog: https://github.com/ThePubDoc/airgap/releases
+
+AutoName: Airgap
+
+RepoType: git
+Repo: https://github.com/ThePubDoc/airgap.git
+# Reproducible build: F-Droid builds from source, checks the result matches this
+# developer-signed APK byte for byte, and then ships the developer's signature.
+Binaries: https://github.com/ThePubDoc/airgap/releases/download/v%v/airgap-%v.apk
+
+Builds:
+  - versionName: 0.2.0
+    versionCode: 2
+    commit: v0.2.0
+    subdir: app
+    gradle:
+      - yes
+
+AllowedAPKSigningKeys: bd35a35a230f225345fb6e091bb263d33ea4b6a1cf2ccc5e7af4a7fac0501c88
+
+AutoUpdateMode: Version
+UpdateCheckMode: Tags
+CurrentVersion: 0.2.0
+CurrentVersionCode: 2

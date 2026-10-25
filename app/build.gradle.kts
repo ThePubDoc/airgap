@@ -31,8 +31,8 @@ android {
         // either biometrics or the device PIN through one BiometricPrompt.
         minSdk = 30
         targetSdk = 37
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -54,6 +54,9 @@ android {
         }
         release {
             signingConfig = signingConfigs.findByName("release")
+            // The git commit AGP would embed differs between checkouts; leave it out so
+            // anyone building the same source gets a byte-identical APK.
+            vcsInfo.include = false
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
@@ -67,6 +70,13 @@ android {
 
     buildFeatures {
         compose = true
+    }
+
+    // Google Play's dependency report is encrypted with Google's key. F-Droid rejects
+    // APKs that carry it, and Airgap isn't distributed through Play's tooling.
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
     }
 
     lint {

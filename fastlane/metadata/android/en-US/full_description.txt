@@ -1,0 +1,21 @@
+<p>Airgap keeps your credit and debit cards on your phone and nowhere else. It has <b>no internet permission</b>, so Android itself stops it from ever sending your cards anywhere. Open <i>Privacy check</i> in the app to see this confirmed live from Android.</p>
+
+<p><b>What you can do</b></p>
+<ul>
+<li>Add a card by tapping it on the back of the phone (NFC reads the number and expiry; you type the CVV).</li>
+<li>Fill card details into online checkout forms in Chrome and other apps, after your fingerprint.</li>
+<li>Copy details for checkout; the clipboard is cleared automatically.</li>
+<li>Get reminders before credit card bills are due and before cards expire.</li>
+<li>Block a lost card fast: one tap opens the dialler or SMS app with your bank's number and block message filled in.</li>
+<li>Give each card a colour, and open Google Wallet or Samsung Wallet for tap-to-pay.</li>
+</ul>
+
+<p><b>How it protects your cards</b></p>
+<ul>
+<li>Cards are encrypted with AES-256-GCM. The key is held in the phone's secure hardware and only unlocks with your fingerprint, face or PIN.</li>
+<li>The vault locks when you leave the app, and after 2 minutes without a touch.</li>
+<li>No backups and no cloud: nothing ever leaves the phone. Screenshots and screen recording are blocked.</li>
+<li>Open source and reproducible: building the source yourself gives a byte-identical app.</li>
+</ul>
+
+<p>Airgap can't make contactless payments itself: that needs a bank-issued token that only certified wallets can get.</p>

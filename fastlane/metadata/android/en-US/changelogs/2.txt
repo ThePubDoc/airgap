@@ -1,0 +1,7 @@
+First public release.
+• Encrypted card vault with fingerprint unlock and auto-lock
+• Tap your card to add it (NFC)
+• Online checkout autofill
+• Bill due-date and expiry reminders
+• Lost-card quick actions
+• Privacy check screen

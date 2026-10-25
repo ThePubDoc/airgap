@@ -2,7 +2,7 @@
 
 An Android card vault that keeps your credit and debit cards on your phone and nowhere else.
 
-- **No internet access.** The app declares no network permission. The build fails if any dependency tries to add one.
+- **No internet access.** The app declares no network permission, and Android enforces that. The build fails if any dependency tries to add one. **Privacy check** in the app shows this live from Android, even before you unlock.
 - **Hardware-backed encryption.** Cards are encrypted with AES-256-GCM. The key is protected by a master key in Android Keystore (StrongBox when the phone has it). That master key can't be used without your fingerprint, face or device PIN.
 - **No backups.** The vault lives in `noBackupFilesDir`, and backup and device-to-device transfer are turned off.
 - **Locks itself.** The vault locks whenever the app leaves the screen, and after 2 minutes without a touch while it's open. While you're adding or editing a card, it stays open for 60 seconds in the background so you can copy details from another app, and anything typed survives a lock. Screenshots, screen recording and the recent-apps preview are blocked.
@@ -32,6 +32,30 @@ How it stays safe:
 - Only forms with a card number or security code field get the suggestion. Login, address and other forms are left alone.
 - Airgap never saves what you type into other apps.
 - Chrome only offers autofill on secure (HTTPS) pages.
+
+## Verify it yourself
+
+You don't have to take the claims above on trust.
+
+1. **In the app:** tap **Privacy check** (on the lock screen or below your cards). It reads Airgap's permissions, backup and debug flags, and signing certificate straight from Android.
+2. **In Android:** Settings → Apps → Airgap → Permissions shows the same list. There's no network permission to grant.
+3. **The signing certificate.** Official builds are signed with this certificate (SHA-256):
+
+   ```
+   BD:35:A3:5A:23:0F:22:53:45:FB:6E:09:1B:B2:63:D3:3E:A4:B6:A1:CF:2C:CC:5E:7A:F4:A7:FA:C0:50:1C:88
+   ```
+
+   A different fingerprint in **Privacy check** means a different publisher.
+4. **The build is reproducible.** Building a tagged release from source gives the same APK as the published one, apart from the signature:
+
+   ```sh
+   git checkout v0.2.0
+   ./gradlew assembleRelease          # without a signing key: app-release-unsigned.apk
+   pip install apksigcopier           # needs apksigner from the Android SDK build-tools on PATH
+   apksigcopier compare airgap-0.2.0.apk --unsigned app/build/outputs/apk/release/app-release-unsigned.apk
+   ```
+
+   No output and exit code 0 means they match. Release builds leave out the git commit (`vcsInfo`) and Google Play's encrypted dependency report so the output doesn't depend on the checkout.
 
 ## Permissions
 
@@ -85,6 +109,7 @@ Each file is laid out as `[IV length: 1 byte][IV][ciphertext + GCM tag]`.
 ```
 app/src/main/java/app/airgap/
 ├── MainActivity.kt           BiometricPrompt, FLAG_SECURE, lock on stop, NFC reader mode
+├── ui/PrivacyCheck.kt        Privacy check screen: permissions and flags read live from Android
 ├── nfc/
 │   ├── EmvCardReader.kt      Reads number and expiry from a contactless EMV card
 │   └── Tlv.kt                BER-TLV parsing for card replies
@@ -156,3 +181,16 @@ adb install app/build/outputs/apk/release/app-release.apk
 ```
 
 Use the release build for real cards. The debug build can be inspected with `adb run-as` and a debugger, and switching between the two needs an uninstall because they're signed with different keys.
+
+## Publishing on F-Droid
+
+The store listing (description, icon, screenshots, changelogs) lives in `fastlane/metadata/android/`, where F-Droid reads it. The build recipe is in `docs/fdroid/app.airgap.yml`.
+
+1. Tag the release (`v0.2.0`) and attach the signed APK to a GitHub release as `airgap-0.2.0.apk`.
+2. Fork [fdroiddata](https://gitlab.com/fdroid/fdroiddata) on GitLab, copy the recipe to `metadata/app.airgap.yml`, and open a merge request.
+3. F-Droid builds from source and checks the result against the signed APK. If they match, it publishes the app with Airgap's own signature, so updates from GitHub and F-Droid are interchangeable.
+
+## License
+
+Airgap is free software under the [GNU General Public License v3.0 or later](LICENSE). You can use, study, change and share it; anything built from it must be shared under the same licence.
+

@@ -159,7 +159,9 @@ class MainActivity : FragmentActivity() {
      */
     private fun maybeAutoUnlock() {
         val state = viewModel.state.value
-        if (viewModel.autoUnlockArmed && state.vaultExists && !state.unlocked && !state.keyInvalidated && !isDeviceLocked()) {
+        if (viewModel.autoUnlockArmed && state.vaultExists && !state.unlocked && !state.keyInvalidated &&
+            !state.privacyCheckOpen && !isDeviceLocked()
+        ) {
             viewModel.autoUnlockArmed = false
             requestUnlock()
         }

@@ -61,6 +61,7 @@ fun CardListScreen(
     onEdit: (Card) -> Unit,
     onCopy: (label: String, value: String) -> Unit,
     onLock: () -> Unit,
+    onPrivacyCheck: () -> Unit,
 ) {
     Scaffold(
         topBar = {
@@ -95,6 +96,11 @@ fun CardListScreen(
             }
             items(cards, key = { it.id }) { card ->
                 CardItem(card = card, onEdit = { onEdit(card) }, onCopy = onCopy)
+            }
+            item(key = "privacy") {
+                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    TextButton(onClick = onPrivacyCheck) { Text("Privacy check") }
+                }
             }
         }
     }

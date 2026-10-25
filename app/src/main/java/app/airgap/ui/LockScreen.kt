@@ -30,6 +30,7 @@ fun LockScreen(
     keyInvalidated: Boolean,
     onUnlock: () -> Unit,
     onErase: () -> Unit,
+    onPrivacyCheck: () -> Unit,
 ) {
     var confirmErase by remember { mutableStateOf(false) }
 
@@ -70,6 +71,8 @@ fun LockScreen(
                     Text(if (vaultExists) "Unlock" else "Create vault")
                 }
             }
+            Spacer(Modifier.height(8.dp))
+            TextButton(onClick = onPrivacyCheck) { Text("Privacy check") }
         }
     }
 

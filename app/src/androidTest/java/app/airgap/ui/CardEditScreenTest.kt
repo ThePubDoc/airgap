@@ -112,12 +112,12 @@ class CardEditScreenTest {
             }
         }
         rule.onNodeWithText("Hold your card flat against the back of the phone to fill its number and expiry.").assertIsDisplayed()
-        tap = CardTap.Read(CardRead("5555555555554444", 5, 2028, "AAYUSH AGRAWAL"))
+        tap = CardTap.Read(CardRead("5555555555554444", 5, 2028, "JANE DOE"))
         rule.waitForIdle()
 
         assertTrue(tapUsed)
         rule.onNodeWithText("5555 5555 5555 4444").assertIsDisplayed()
-        rule.onNodeWithText("AAYUSH AGRAWAL").assertIsDisplayed()
+        rule.onNodeWithText("JANE DOE").assertIsDisplayed()
         rule.onNodeWithText("Card read. Add the CVV yourself: cards don't share it.").assertIsDisplayed()
         rule.onNodeWithText("Save").performClick()
         assertEquals(5, saved!!.expiryMonth)

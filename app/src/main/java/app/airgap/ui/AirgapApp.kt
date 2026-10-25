@@ -5,6 +5,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @Composable
@@ -19,13 +21,18 @@ fun AirgapApp(
     val nfcStatus by viewModel.nfcStatus.collectAsStateWithLifecycle()
     val cardTap by viewModel.cardTap.collectAsStateWithLifecycle()
 
-    if (!state.unlocked) {
+    if (state.privacyCheckOpen) {
+        val context = LocalContext.current
+        val report = remember { PrivacyReport.from(context) }
+        PrivacyCheckScreen(report, onBack = viewModel::closePrivacyCheck)
+    } else if (!state.unlocked) {
         LockScreen(
             vaultExists = state.vaultExists,
             hasUnsavedCard = state.screen is Screen.EditCard,
             keyInvalidated = state.keyInvalidated,
             onUnlock = onUnlock,
             onErase = viewModel::eraseVault,
+            onPrivacyCheck = viewModel::openPrivacyCheck,
         )
     } else {
         when (val screen = state.screen) {
@@ -35,6 +42,7 @@ fun AirgapApp(
                 onEdit = { viewModel.openEditor(it.id) },
                 onCopy = onCopy,
                 onLock = viewModel::lock,
+                onPrivacyCheck = viewModel::openPrivacyCheck,
             )
             is Screen.EditCard -> CardEditScreen(
                 existing = state.cards.find { it.id == screen.cardId },

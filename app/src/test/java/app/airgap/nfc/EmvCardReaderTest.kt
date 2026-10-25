@@ -39,10 +39,10 @@ class EmvCardReaderTest {
             "80A80000" to tlv("77", tlv("82", "2000"), tlv("94", "08010100")) + ok,
             "00B2010C" to tlv("70",
                 tlv("57", "4111111111111111D29032011234567890000F"),
-                tlv("5F20", ascii("AGRAWAL/AAYUSH"))) + ok,
+                tlv("5F20", ascii("DOE/JANE"))) + ok,
         ))
         val read = EmvCardReader(card::transceive).read()
-        assertEquals(CardRead("4111111111111111", 3, 2029, "AAYUSH AGRAWAL"), read)
+        assertEquals(CardRead("4111111111111111", 3, 2029, "JANE DOE"), read)
         // PDOL asked for 4 + 6 + 4 bytes, so the GPO carries 14 bytes of terminal data.
         val gpo = card.sent.first { it.startsWith("80A8") }
         assertEquals("80A8000010830E", gpo.take(14))
@@ -91,8 +91,8 @@ class EmvCardReaderTest {
 
     @Test
     fun `names are tidied and placeholders dropped`() {
-        assertEquals("AAYUSH AGRAWAL", EmvCardReader.cleanName("AGRAWAL/AAYUSH  "))
-        assertEquals("AAYUSH AGRAWAL", EmvCardReader.cleanName("AAYUSH AGRAWAL"))
+        assertEquals("JANE DOE", EmvCardReader.cleanName("DOE/JANE  "))
+        assertEquals("JANE DOE", EmvCardReader.cleanName("JANE DOE"))
         assertNull(EmvCardReader.cleanName(" / "))
         assertNull(EmvCardReader.cleanName("CARDHOLDER/VISA"))
         assertNull(EmvCardReader.cleanName("VALUED CUSTOMER"))

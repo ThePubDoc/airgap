@@ -37,7 +37,7 @@ class CardListScreenTest {
 
     private fun show(vararg cards: Card) = rule.setContent {
         AirgapTheme {
-            CardListScreen(cards = cards.toList(), onAdd = {}, onEdit = {}, onCopy = { _, _ -> }, onLock = {})
+            CardListScreen(cards = cards.toList(), onAdd = {}, onEdit = {}, onCopy = { _, _ -> }, onLock = {}, onPrivacyCheck = {})
         }
     }
 

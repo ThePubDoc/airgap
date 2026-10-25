@@ -43,6 +43,8 @@ data class VaultUiState(
     val screen: Screen = Screen.Cards,
     val keyInvalidated: Boolean = false,
     val error: String? = null,
+    /** The privacy check screen. Open from the lock screen too, since it shows no card data. */
+    val privacyCheckOpen: Boolean = false,
 )
 
 class VaultViewModel(application: Application) : AndroidViewModel(application) {
@@ -225,6 +227,10 @@ class VaultViewModel(application: Application) : AndroidViewModel(application) {
             _state.value = VaultUiState()
         }
     }
+
+    fun openPrivacyCheck() = _state.update { it.copy(privacyCheckOpen = true) }
+
+    fun closePrivacyCheck() = _state.update { it.copy(privacyCheckOpen = false) }
 
     fun showError(message: String) = _state.update { it.copy(error = message) }
 
