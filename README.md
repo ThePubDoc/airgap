@@ -59,6 +59,9 @@ You don't have to take the claims above on trust.
 
 ## Permissions
 
+The full [privacy policy](PRIVACY.md) covers what's stored on the phone and when your own actions pass details to another app.
+
+
 | Permission | Why |
 |---|---|
 | `USE_BIOMETRIC` | Unlock with fingerprint, face or PIN |

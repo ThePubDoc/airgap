@@ -1,11 +1,14 @@
 package app.airgap.ui
 
+import android.content.ActivityNotFoundException
 import android.content.Context
+import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.os.Build
 import android.view.autofill.AutofillManager
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -19,6 +22,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -26,8 +30,10 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
 import java.security.MessageDigest
 
 /** One permission Airgap holds, in plain words. */
@@ -187,6 +193,22 @@ fun PrivacyCheckScreen(report: PrivacyReport, onBack: () -> Unit) {
                 }
             }
 
+            Section("Privacy policy") {
+                Text(
+                    "Airgap collects nothing and can't send anything off your phone. The full policy says what's stored here and why.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                val context = LocalContext.current
+                OutlinedButton(onClick = {
+                    // Airgap has no internet access, so the browser opens the page.
+                    try {
+                        context.startActivity(Intent(Intent.ACTION_VIEW, PRIVACY_POLICY_URL.toUri()))
+                    } catch (e: ActivityNotFoundException) {
+                        Toast.makeText(context, PRIVACY_POLICY_URL, Toast.LENGTH_LONG).show()
+                    }
+                }) { Text("Read the privacy policy") }
+            }
+
             Section("Check it yourself") {
                 Text(
                     "Settings → Apps → Airgap → Permissions lists the same permissions as above.",
@@ -201,6 +223,8 @@ fun PrivacyCheckScreen(report: PrivacyReport, onBack: () -> Unit) {
         }
     }
 }
+
+const val PRIVACY_POLICY_URL = "https://github.com/ThePubDoc/airgap/blob/main/PRIVACY.md"
 
 @Composable
 private fun Section(title: String, content: @Composable () -> Unit) {
