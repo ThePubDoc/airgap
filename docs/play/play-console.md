@@ -9,7 +9,7 @@ Draft answers for Play Console's "App content" and listing sections, matching wh
 - **Full description:** from `full_description.txt` in the same folder (Play doesn't render the HTML tags; remove them or switch to plain line breaks)
 - **Icon:** `fastlane/metadata/android/en-US/images/icon.png` (512 × 512)
 - **Phone screenshots:** `fastlane/metadata/android/en-US/images/phoneScreenshots/`
-- **Feature graphic (1024 × 500):** still needed; Play requires one
+- **Feature graphic (1024 × 500):** `fastlane/metadata/android/en-US/images/featureGraphic.png`. Source: `docs/play/feature-graphic.html`, rendered at a 1024 × 500 viewport (F-Droid uses the same file as its banner)
 - **Category:** Finance (or Tools)
 - **Contact email:** Play requires one on the listing; use an address you're happy to make public
 
